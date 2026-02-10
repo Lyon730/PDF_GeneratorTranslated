@@ -1,0 +1,45 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "zipPath",
+      "type": "promptString",
+      "description": "Ruta al .zip con imágenes",
+      "default": "${workspaceFolder}\\mi_zip_imagenes.zip"
+    },
+    {
+      "id": "outDir",
+      "type": "promptString",
+      "description": "Carpeta de salida",
+      "default": "${workspaceFolder}\\output"
+    }
+  ],
+  "tasks": [
+    {
+      "label": "ZIP imágenes → PDF (Lens EN→ES)",
+      "type": "shell",
+      "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+      "args": [
+        "${workspaceFolder}\\zip_to_lens_pdf.py",
+        "--zip",
+        "${input:zipPath}",
+        "--out",
+        "${input:outDir}"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "UI: ZIP → PDFs (Streamlit)",
+      "type": "shell",
+      "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "streamlit",
+        "run",
+        "${workspaceFolder}\\app.py"
+      ],
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

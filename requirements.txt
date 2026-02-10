@@ -1,0 +1,9 @@
+Pillow>=10.0.0
+pytesseract>=0.3.10
+reportlab>=4.0.0
+# Optional (used if available) for EN->ES translation without API keys.
+# May require internet access.
+deep-translator>=1.11.4
+
+# UI
+streamlit>=1.32.0
