@@ -398,7 +398,7 @@ def extract_images_from_zip(zip_path: Path, out_dir: Path) -> list[Path]:
         names = [n for n in zf.namelist() if not n.endswith("/")]
         # Keep only known image extensions
         names = [n for n in names if Path(n).suffix.lower() in IMAGE_EXTS]
-        # Sort by basename (filename only) as initial order
+        # Sort by basename (filename only), not by full path
         names.sort(key=lambda n: natural_sort_key(Path(n).name))
 
         extracted: list[Path] = []
@@ -407,25 +407,7 @@ def extract_images_from_zip(zip_path: Path, out_dir: Path) -> list[Path]:
             with zf.open(name) as src, open(target, "wb") as dst:
                 shutil.copyfileobj(src, dst)
             extracted.append(target)
-    
-    # Try to sort by page number extracted from footer
-    # If all page numbers are found, use that order; otherwise keep filename order
-    page_numbers: dict[Path, Optional[int]] = {}
-    for img_path in extracted:
-        try:
-            img = Image.open(img_path).convert("RGB")
-            page_num = extract_page_number_from_footer(img)
-            page_numbers[img_path] = page_num
-        except Exception:
-            page_numbers[img_path] = None
-    
-    # Check if we have valid page numbers for most images
-    valid_page_nums = [pn for pn in page_numbers.values() if pn is not None]
-    if len(valid_page_nums) >= len(extracted) * 0.7:  # At least 70% of images have page numbers
-        # Sort by page number (None values go to the end)
-        extracted.sort(key=lambda p: (page_numbers[p] is None, page_numbers[p]))
-    # else: keep filename order
-    
+
     return extracted
 
 
