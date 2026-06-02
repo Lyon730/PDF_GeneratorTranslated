@@ -534,7 +534,7 @@ def convert_zip_to_pdfs(
                     )
             else:
                 # All images reused
-                translated_images = sorted(translated_images, key=lambda p: natural_sort_key(p.name))
+                translated_images = sorted(translated_images, key=lambda p: p.name)
 
             tick("pdf_es", 0, 1)
             pdf_es_path = pdf_dir / f"{base_name} - ES.pdf"
