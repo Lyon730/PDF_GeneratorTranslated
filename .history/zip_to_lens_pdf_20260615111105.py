@@ -431,17 +431,8 @@ def extract_images_from_zip(zip_path: Path, out_dir: Path) -> list[Path]:
         names = [n for n in zf.namelist() if not n.endswith("/")]
         # Keep only known image extensions
         names = [n for n in names if Path(n).suffix.lower() in IMAGE_EXTS]
-        # Sort by page number in filename when available, otherwise by natural filename order.
-        def name_order_key(n: str):
-            stem = Path(n).stem
-            page_num = extract_page_number_from_filename(stem)
-            return (
-                page_num is None,
-                page_num if page_num is not None else float("inf"),
-                natural_sort_key(stem),
-            )
-
-        names.sort(key=name_order_key)
+        # Sort by basename (filename only) as initial order
+        names.sort(key=lambda n: natural_sort_key(Path(n).name))
 
         extracted: list[tuple[Path, str]] = []
         for name in names:
