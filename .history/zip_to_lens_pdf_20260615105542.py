@@ -438,20 +438,21 @@ def extract_images_from_zip(zip_path: Path, out_dir: Path) -> list[Path]:
             with zf.open(name) as src, open(target, "wb") as dst:
                 shutil.copyfileobj(src, dst)
             extracted.append(target)
-
-    # Ordena por número de página extraído del nombre del archivo. Si falta, usa OCR del pie.
+    
+    # Try to sort by page number extracted from footer.
+    # Keep filename order unless we have at least two valid footer numbers.
     page_numbers: dict[Path, Optional[int]] = {}
     for img_path in extracted:
-        page_num = extract_page_number_from_filename(img_path.name)
-        if page_num is None:
-            try:
-                img = Image.open(img_path).convert("RGB")
-                page_num = extract_page_number_from_footer(img)
-            except Exception:
-                page_num = None
-        page_numbers[img_path] = page_num
+        try:
+            img = Image.open(img_path).convert("RGB")
+            page_num = extract_page_number_from_footer(img)
+            page_numbers[img_path] = page_num
+        except Exception:
+            page_numbers[img_path] = None
 
-    if any(pn is not None for pn in page_numbers.values()):
+    valid_page_nums = [pn for pn in page_numbers.values() if pn is not None]
+    if len(valid_page_nums) >= 2:
+        # Sort by page number when detected; unknown pages appear at the end.
         extracted.sort(
             key=lambda p: (
                 page_numbers[p] is None,
