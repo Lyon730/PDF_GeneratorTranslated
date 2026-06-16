@@ -123,13 +123,12 @@ with col_right:
         st.info("Sube un ZIP o un PDF para habilitar la ejecución.")
 
 if (run_zip and uploaded is not None) or (run_pdf and uploaded_pdf is not None):
-    pdf_only = run_pdf and uploaded_pdf is not None
     zip_stem = sanitize_zip_stem(uploaded.name) if uploaded is not None else sanitize_zip_stem(uploaded_pdf.name)
 
     # Reset cancel flag at start
     st.session_state.cancel_requested = False
 
-    if (generate_es or pdf_only) and not tesseract_cmd:
+    if generate_es and not tesseract_cmd:
         st.error("Para generar ES necesitas Tesseract. Indica la ruta a tesseract.exe.")
         st.stop()
 
@@ -140,16 +139,25 @@ if (run_zip and uploaded is not None) or (run_pdf and uploaded_pdf is not None):
         if st.session_state.get("cancel_requested"):
             raise CancelledError("Cancelado por el usuario")
 
+        # Stage-specific messages
+        if stage == "extract":
+            progress_bar.progress(1, text="Extrayendo imágenes…")
+            status.write("")
+            return
+        if stage == "title":
+            progress_bar.progress(2, text="Detectando título (OCR)…")
+            status.write("")
+            return
+        if stage == "pdf_en":
+            progress_bar.progress(5, text="Generando PDF EN…")
+            status.write("")
+            return
         if stage == "translate":
+            # Map translate progress into 5..95
             frac = 0 if total <= 0 else (current / total)
             pct = 5 + int(frac * 90)
             progress_bar.progress(min(95, max(5, pct)), text=f"Traduciendo (ES): {current}/{total} páginas…")
             status.write(f"Procesadas {current} de {total} páginas")
-            return
-
-        if stage == "pdf_en":
-            progress_bar.progress(5, text="Generando PDF EN…")
-            status.write("")
             return
         if stage == "pdf_es":
             progress_bar.progress(98, text="Generando PDF ES…")
@@ -157,84 +165,46 @@ if (run_zip and uploaded is not None) or (run_pdf and uploaded_pdf is not None):
             return
 
     try:
-        with tempfile.TemporaryDirectory(prefix="ui_") as td:
-            if pdf_only:
-                temp_pdf = Path(td) / f"{zip_stem}.pdf"
-                temp_pdf.write_bytes(uploaded_pdf.getvalue())
-                pages = 0
-                try:
-                    from PIL import Image as PILImage
-                    with PILImage.open(temp_pdf) as pdf_file:
-                        pages = getattr(pdf_file, "n_frames", 1)
-                except Exception:
-                    pages = 0
+        with tempfile.TemporaryDirectory(prefix="ui_zip_") as td:
+            temp_zip = Path(td) / f"{zip_stem}.zip"
+            temp_zip.write_bytes(uploaded.getvalue())
 
-                pdf_es_path = zip_to_lens_pdf.convert_pdf_to_translated_pdf(
-                    temp_pdf,
-                    Path(out_dir),
-                    tesseract_cmd=tesseract_cmd,
-                    ocr_lang=ocr_lang,
-                    ocr_max_width=int(ocr_max_width),
-                    progress=progress_cb,
-                )
-                outputs = {"es": pdf_es_path}
-                meta = {
-                    "pages": pages,
-                    "seconds": 0,
-                    "ocr_max_width": int(ocr_max_width),
-                    "resume": False,
-                }
-            else:
-                temp_zip = Path(td) / f"{zip_stem}.zip"
-                temp_zip.write_bytes(uploaded.getvalue())
-
-                outputs, meta = zip_to_lens_pdf.convert_zip_to_pdfs(
-                    temp_zip,
-                    Path(out_dir),
-                    tesseract_cmd=(tesseract_cmd if generate_es else None),
-                    generate_es=generate_es,
-                    ocr_lang=ocr_lang,
-                    title=title_override.strip(),
-                    title_ocr_lang=title_ocr_lang,
-                    ocr_max_width=int(ocr_max_width),
-                    workers=int(workers),
-                    resume=bool(resume),
-                    progress=progress_cb,
-                )
+            outputs, meta = zip_to_lens_pdf.convert_zip_to_pdfs(
+                temp_zip,
+                Path(out_dir),
+                tesseract_cmd=(tesseract_cmd if generate_es else None),
+                generate_es=generate_es,
+                ocr_lang=ocr_lang,
+                title=title_override.strip(),
+                title_ocr_lang=title_ocr_lang,
+                ocr_max_width=int(ocr_max_width),
+                workers=int(workers),
+                resume=bool(resume),
+                progress=progress_cb,
+            )
 
         progress_bar.progress(100, text="Completado")
         st.success("Listo")
 
         st.subheader("Descargas")
-        if pdf_only:
-            es_path = outputs.get("es")
-            if es_path and es_path.exists():
-                st.download_button(
-                    label=f"Descargar ES: {es_path.name}",
-                    data=es_path.read_bytes(),
-                    file_name=es_path.name,
-                    mime="application/pdf",
-                    use_container_width=True,
-                )
-        else:
-            en_path = outputs.get("en")
-            if en_path and en_path.exists():
-                st.download_button(
-                    label=f"Descargar EN: {en_path.name}",
-                    data=en_path.read_bytes(),
-                    file_name=en_path.name,
-                    mime="application/pdf",
-                    use_container_width=True,
-                )
-            es_path = outputs.get("es")
-            if es_path and es_path.exists():
-                st.download_button(
-                    label=f"Descargar ES: {es_path.name}",
-                    data=es_path.read_bytes(),
-                    file_name=es_path.name,
-                    mime="application/pdf",
-                    use_container_width=True,
-                )
+        en_path = outputs.get("en")
+        if en_path and en_path.exists():
+            st.download_button(
+                label=f"Descargar EN: {en_path.name}",
+                data=en_path.read_bytes(),
+                file_name=en_path.name,
+                mime="application/pdf",
+                use_container_width=True,
+            )
+        es_path = outputs.get("es")
+        if es_path and es_path.exists():
+            st.download_button(
+                label=f"Descargar ES: {es_path.name}",
+                data=es_path.read_bytes(),
+                file_name=es_path.name,
+                mime="application/pdf",
+                use_container_width=True,
+            )
 
         st.caption(f"Salida: {(Path(out_dir) / 'pdf').resolve()}")
 
@@ -243,6 +213,7 @@ if (run_zip and uploaded is not None) or (run_pdf and uploaded_pdf is not None):
             {
                 "páginas": meta.get("pages"),
                 "segundos": meta.get("seconds"),
+                "workers": meta.get("workers"),
                 "ocr_max_width": meta.get("ocr_max_width"),
                 "resume": meta.get("resume"),
             }

@@ -449,7 +449,7 @@ def convert_pdf_to_translated_pdf(
 
         for page in range(n_pages):
             if progress is not None:
-                progress("translate", page + 1, n_pages)
+                progress("translate", page, n_pages)
             pdf_img.seek(page)
             img = pdf_img.convert("RGB")
             translated_img, _ = draw_translated_overlay(
