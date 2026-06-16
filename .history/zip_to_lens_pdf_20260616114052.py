@@ -630,18 +630,18 @@ def convert_zip_to_pdfs(
         outputs: dict[str, Path] = {"en": pdf_en_path}
 
         if generate_es:
-            # Limpia imágenes antiguas si existen
-            if translated_dir.exists():
-                shutil.rmtree(translated_dir)
             translated_dir.mkdir(parents=True, exist_ok=True)
             translated_images: list[Path] = []
             total = pages
 
-            # Precompute output paths (no resume: always retranslate)
+            # Precompute output paths and apply resume
             jobs: list[tuple[int, Path, Path]] = []
             for i, img_path in enumerate(images, start=1):
                 out_path = translated_dir / f"{i:03d}_{img_path.stem}.png"
-                jobs.append((i, img_path, out_path))
+                if resume and out_path.exists():
+                    translated_images.append(out_path)
+                else:
+                    jobs.append((i, img_path, out_path))
 
             done = len(translated_images)
             tick("translate", done, total)
@@ -685,6 +685,9 @@ def convert_zip_to_pdfs(
                         list(translated_dir.glob("*.png")),
                         key=lambda p: natural_sort_key(p.name),
                     )
+            else:
+                # All images reused
+                translated_images = sorted(translated_images, key=lambda p: natural_sort_key(p.name))
 
             tick("pdf_es", 0, 1)
             pdf_es_path = pdf_dir / f"{base_name} - ES.pdf"
