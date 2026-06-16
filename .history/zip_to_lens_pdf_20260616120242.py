@@ -501,62 +501,7 @@ def draw_translated_overlay(
     font_path: Optional[str] = None,
     ocr_max_width: int = 1600,
 ) -> tuple[Image.Image, list[LineBox]]:
-    """Traduce y reemplaza texto en la imagen.
-    
-    Intenta usar EasyOCR + inpainting (mejor calidad).
-    Fallback a Tesseract + overlay si EasyOCR no está disponible.
-    """
     base = img.convert("RGB")
-
-    # Intenta modo avanzado: EasyOCR + inpainting
-    if easyocr and cv2:
-        try:
-            # Detecta con EasyOCR
-            boxes = ocr_with_easyocr(base, lang=lang_ocr.split("+")[0].lower()[:2])
-            if boxes:
-                # Inpaint para borrar el texto original
-                base_inpainted = inpaint_text_region(base, boxes, dilation=2)
-                # Dibujar texto traducido sobre la región limpia
-                draw = ImageDraw.Draw(base_inpainted)
-
-                if font_path is None:
-                    font_path = get_default_font_path()
-
-                for box in boxes:
-                    translated = try_translate_en_to_es(box.text)
-                    if not translated:
-                        translated = box.text
-
-                    # Ajustar tamaño de fuente
-                    target_h = max(10, int((box.bottom - box.top) * 0.9))
-                    if font_path and os.path.exists(font_path):
-                        size = target_h
-                        font = ImageFont.truetype(font_path, size=size)
-                        max_w = max(10, box.right - box.left)
-                        while size > 8:
-                            w_text = draw.textlength(translated, font=font)
-                            if w_text <= max_w:
-                                break
-                            size -= 1
-                            font = ImageFont.truetype(font_path, size=size)
-                    else:
-                        font = ImageFont.load_default()
-
-                    # Color de texto: oscuro/blanco según fondo
-                    bbox = (box.left, box.top, box.right, box.bottom)
-                    bg = median_background_color(base_inpainted, bbox, pad=2)
-                    lum = 0.2126 * bg[0] + 0.7152 * bg[1] + 0.0722 * bg[2]
-                    fg = (0, 0, 0) if lum > 140 else (255, 255, 255)
-
-                    draw.text((box.left, box.top), translated, fill=fg, font=font)
-
-                return base_inpainted, boxes
-
-        except Exception:
-            # Si falla EasyOCR, continúa con Tesseract
-            pass
-
-    # Fallback: modo clásico Tesseract + overlay
     draw = ImageDraw.Draw(base)
 
     ocr_img, scale_x, scale_y = resize_for_ocr(base, max_width=ocr_max_width)
